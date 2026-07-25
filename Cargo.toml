@@ -3,4 +3,12 @@ name = "lattice-4000"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "l16_assembler"
+path = "src/l16_assembler.rs"
+
+[[bin]]
+name = "lattice-4000"
+path = "src/main.rs"
+
 [dependencies]
