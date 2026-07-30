@@ -17,7 +17,7 @@ fn main() {
     let mut sp: u16 = 0xFFFF; // no, you don't get to set your own sp
     let mut memory: [u8; 65536] = [0; 65536]; // Memory: 64KB of memory, 65536 bytes flat. if you want more buy from like samsung or something
     let mut registers: [u16; 8] = [0; 8]; // Registers: [R0, R1, R2, R3, R4, R5, R6, R7] in that order, or A, B, C, W, R, X, Y, Z because register names are completely arbitrary
-    let mut flags: [u16; 3] = [0; 3]; // Flags: [EQ, LT, GT] in that order because my compare function said so
+    let mut flags: Vec<u16> = vec![0, 0, 0]; // Flags: [EQ, LT, GT] in that order because my compare function said so
 
     while i < code.len() {
         let instr = [code[i], code[i + 1], code[i + 2], code[i + 3]];
@@ -30,13 +30,13 @@ fn main() {
             0x01 => {
                 let addr = ((instr[2] as u16) << 8) | (instr[3] as u16);
                 let value = grab_addr(&memory, addr);
-                registers[instr[1] as usize] = l16_math::add(registers[instr[1] as usize], value);
+                registers[instr[1] as usize] = l16_math::add(registers[instr[1] as usize], value)[0];
                 i += 4;
             }
             0x02 => {
                 let addr = ((instr[2] as u16) << 8) | (instr[3] as u16);
                 let value = grab_addr(&memory, addr);
-                registers[instr[1] as usize] = l16_math::sub(registers[instr[1] as usize], value);
+                registers[instr[1] as usize] = l16_math::sub(registers[instr[1] as usize], value)[0];
                 i += 4;
             }
             0x03 => {
@@ -58,11 +58,11 @@ fn main() {
                 i += 4;
             }
             0x06 => {
-                registers[instr[1] as usize] = l16_math::add(registers[instr[1] as usize], 1);
+                registers[instr[1] as usize] = l16_math::add(registers[instr[1] as usize], 1)[0];
                 i += 4;
             }
             0x07 => {
-                registers[instr[1] as usize] = l16_math::sub(registers[instr[1] as usize], 1);
+                registers[instr[1] as usize] = l16_math::sub(registers[instr[1] as usize], 1)[0];
                 i += 4;
             }
             0x08 => {
@@ -96,13 +96,13 @@ fn main() {
             0x0D => {
                 let addr = ((instr[2] as u16) << 8) | (instr[3] as u16);
                 let value = grab_addr(&memory, addr);
-                registers[instr[1] as usize] = l16_shift::bsl(registers[instr[1] as usize], value as u16);
+                registers[instr[1] as usize] = l16_shift::bsl(registers[instr[1] as usize]);
                 i += 4;
             }
             0x0E => {
                 let addr = ((instr[2] as u16) << 8) | (instr[3] as u16);
                 let value = grab_addr(&memory, addr);
-                registers[instr[1] as usize] = l16_shift::bsr(registers[instr[1] as usize], value as u16);
+                registers[instr[1] as usize] = l16_shift::bsr(registers[instr[1] as usize]);
                 i += 4;
             }
             0x0F => {
@@ -113,7 +113,7 @@ fn main() {
             }
             0x10 => {
                 let addr = ((instr[2] as u16) << 8) | (instr[3] as u16);
-                memory[addr as usize] = registers[instr[1] as usize] >> 8 as u8; // store high byte
+                memory[addr as usize] = (registers[instr[1] as usize] >> 8) as u8; // store high byte
                 memory[(addr + 1) as usize] = registers[instr[1] as usize] as u8; // store low byte
                 i += 4;
             }
@@ -159,17 +159,87 @@ fn main() {
                 i += 4;
             }
             0x17 => {
-                memory[sp as usize] = registers[instr[1] as usize] >> 8 as u8; // store high byte
-                memory[(sp + 1) as usize] = registers[instr[1] as usize] as u8; // store low byte
                 sp -= 2;
+                memory[sp as usize] = (registers[instr[1] as usize] >> 8) as u8; // store high byte
+                memory[(sp - 1) as usize] = registers[instr[1] as usize] as u8; // store low byte
                 i += 4;
             }
             0x18 => {
                 registers[instr[1] as usize] = grab_addr(&memory, sp);
                 memory[sp as usize] = 0; // clear high byte
-                memory[(sp + 1) as usize] = 0; // clear low byte
+                memory[(sp - 1) as usize] = 0; // clear low byte
                 sp += 2;
                 i += 4;
+            }
+            0x19 => { // CALL
+                let addr = ((instr[1] as u16) << 8) | (instr[2] as u16);
+                let return_addr = i + 4;
+                sp -= 2;
+                memory[sp as usize] = (return_addr >> 8) as u8; // store high byte
+                memory[(sp - 1) as usize] = return_addr as u8; // store low byte
+                i = addr as usize;
+            }
+            0x1A => { // CEQ
+                let addr = ((instr[1] as u16) << 8) | (instr[2] as u16);
+                if flags[0] == 1 {
+                    let return_addr = i + 4;
+                    sp -= 2;
+                    memory[sp as usize] = (return_addr >> 8) as u8; // store high byte
+                    memory[(sp - 1) as usize] = return_addr as u8; // store low byte
+                    i = addr as usize;
+                } 
+                else {
+                    i += 4;
+                }
+            }
+            0x1B => { // CNE
+                let addr = ((instr[1] as u16) << 8) | (instr[2] as u16);
+                if flags[0] == 0 {
+                    let return_addr = i + 4;
+                    sp -= 2;
+                    memory[sp as usize] = (return_addr >> 8) as u8; // store high byte
+                    memory[(sp - 1) as usize] = return_addr as u8; // store low byte
+                    i = addr as usize;
+                } 
+                else {
+                    i += 4;
+                }
+            }
+            0x1C => { // CGE
+                let addr = ((instr[1] as u16) << 8) | (instr[2] as u16);
+                if flags[2] == 1 {
+                    let return_addr = i + 4;
+                    sp -= 2;
+                    memory[sp as usize] = (return_addr >> 8) as u8; // store high byte
+                    memory[(sp - 1) as usize] = return_addr as u8; // store low byte
+                    i = addr as usize;
+                } 
+                else {
+                    i += 4;
+                }
+            }
+            0x1D => { // CLT
+                let addr = ((instr[1] as u16) << 8) | (instr[2] as u16);
+                if flags[1] == 1 {
+                    let return_addr = i + 4;
+                    sp -= 2;
+                    memory[sp as usize] = (return_addr >> 8) as u8; // store high byte
+                    memory[(sp - 1) as usize] = return_addr as u8; // store low byte
+                    i = addr as usize;
+                } 
+                else {
+                    i += 4;
+                }
+            }
+            0x1E => { // RET
+                let return_addr = grab_addr(&memory, sp);
+                memory[sp as usize] = 0; // clear high byte
+                memory[(sp - 1) as usize] = 0; // clear low byte
+                sp += 2;
+                i = return_addr as usize;
+            }
+            0x1F => { // HLT
+                break;
             }
             _ => {
                 panic!("Unknown instruction: {:02X}", instr[0]);
@@ -179,7 +249,7 @@ fn main() {
 }
 
 fn grab_addr(memory: &[u8], addr: u16) -> u16 {
-    let low = memory[(addr + 1) as usize] as u16;
+    let low = memory[(addr - 1) as usize] as u16;
     let high = memory[addr as usize] as u16;
     return ((high << 8) | low);
 }
